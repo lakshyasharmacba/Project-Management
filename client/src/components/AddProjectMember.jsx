@@ -69,8 +69,8 @@ const AddProjectMember = ({ isDialogOpen, setIsDialogOpen }) => {
                             <select value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 mt-1 w-full rounded border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200 text-sm placeholder-zinc-400 dark:placeholder-zinc-500 py-2 focus:outline-none focus:border-blue-500" required >
                                 <option value="">Select a member</option>
                                 {currentWorkspace?.members
-                                    // Only workspace members (not admins), not the lead, not already added
-                                    .filter((member) => member.role === "MEMBER" && member.user.id !== project.team_lead && !projectMembersEmails.includes(member.user.email))
+                                    // Admins (lead and other admins) and existing members are not listed
+                                    .filter((member) => member.user.id !== project.team_lead && member.role !== "ADMIN" && !projectMembersEmails.includes(member.user.email))
                                     .map((member) => (
                                         <option key={member.user.id} value={member.user.email}> {member.user.name} ({member.user.email}) </option>
                                     ))}

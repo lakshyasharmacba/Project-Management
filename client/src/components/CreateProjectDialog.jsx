@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { XIcon } from "lucide-react";
+import { XIcon, ShieldCheckIcon } from "lucide-react";
 import { useAuth, useUser } from "@clerk/react";
 import { useDispatch, useSelector } from "react-redux";
 import { addProject } from "../features/workspaceSlice";
@@ -30,14 +30,18 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
     const [formData, setFormData] = useState(initialFormData);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Only a workspace admin can be the lead. Team members are plain members (admins only manage).
+    // Only a workspace admin can be the lead. The lead is not a team member (the lead only manages).
     const admins = currentWorkspace?.members?.filter((m) => m.role === "ADMIN" && m.user?.email) || [];
     const workerOptions =
         currentWorkspace?.members?.filter(
-            (m) => m.role === "MEMBER" && m.user?.email && !formData.team_members.includes(m.user.email)
+            (m) =>
+                m.user?.email &&
+                m.role !== "ADMIN" && // admins do not work on tasks, so they are not listed
+                m.user.email !== formData.team_lead &&
+                !formData.team_members.includes(m.user.email)
         ) || [];
 
-    // Default lead = the current user (if they are an admin)
+    // Default lead = the logged-in user (if they are an admin)
     useEffect(() => {
         const myEmail = user?.primaryEmailAddress?.emailAddress;
         if (isDialogOpen && !formData.team_lead && admins.some((m) => m.user.email === myEmail)) {
@@ -61,6 +65,7 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
                 { workspaceId: currentWorkspace.id, ...formData },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+            toast.success("Project created successfully");
             dispatch(addProject(data.project));
             setFormData(initialFormData);
             setIsDialogOpen(false);
@@ -182,7 +187,10 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
 
                     {/* Lead (admins only) */}
                     <div>
-                        <label className="block text-sm mb-1">Project Lead (Admin)</label>
+                        <label className="flex items-center gap-1.5 text-sm mb-1">
+                            <ShieldCheckIcon className="size-4 text-blue-500" />
+                            Project Lead / Admin (record &amp; oversight only)
+                        </label>
                         <select
                             value={formData.team_lead}
                             onChange={(e) =>
