@@ -23,27 +23,34 @@ const FullScreenLoader = ({ message, onRetry }) => (
 const Layout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const { user, isLoaded } = useUser()
-    const { workspaces, loaded } = useSelector((state) => state.workspace)
+    const { workspaces, loaded, error: fetchError } = useSelector((state) => state.workspace)
     const dispatch = useDispatch()
-    const { clerkCount, syncNow } = useWorkspaceSync()
+    const { clerkCount, syncNow, syncError } = useWorkspaceSync()
 
     useEffect(() => {
         dispatch(loadTheme())
     }, [dispatch])
 
     // Wait until Clerk has loaded (avoids a sign-in form flash)
-    if (!isLoaded) return <FullScreenLoader />
+    if (!isLoaded) return <FullScreenLoader message="Loading your workspace..." />
 
     // Logged out -> go to the sign-in page
     if (!user) return <Navigate to="/sign-in" replace />
 
     // Wait for the first server response so the "Create Organization" form does not flash by mistake.
-    if (!loaded) return <FullScreenLoader />
+    if (!loaded) return <FullScreenLoader message="Loading your workspace..." />
 
     if (workspaces.length === 0) {
         // The org exists in Clerk but not in the DB yet -> do not create a new one, let it sync
         if (clerkCount > 0) {
-            return <FullScreenLoader message="Setting up your workspace..." onRetry={syncNow} />
+            // Same loader as above (it looks like one single loading). If it fails, show the reason + Retry.
+            const errorMessage = syncError || fetchError
+            return (
+                <FullScreenLoader
+                    message={errorMessage ? `Could not load workspace: ${errorMessage}` : "Loading your workspace..."}
+                    onRetry={errorMessage ? syncNow : undefined}
+                />
+            )
         }
         return (
             <div className="min-h-screen flex justify-center items-center">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth, useOrganizationList, useUser } from "@clerk/react";
 import { useDispatch, useSelector, useStore } from "react-redux";
 import toast from "react-hot-toast";
@@ -25,7 +25,8 @@ export default function useWorkspaceSync() {
     const { getToken } = useAuth();
     const dispatch = useDispatch();
     const store = useStore();
-    const { workspaces, loaded, loading, currentWorkspace } = useSelector((state) => state.workspace);
+    const { workspaces, loaded, loading, currentWorkspace, error } = useSelector((state) => state.workspace);
+    const [syncError, setSyncError] = useState(null);
     const lastSyncKey = useRef(null);
     const { userMemberships, isLoaded: orgsLoaded } = useOrganizationList({ userMemberships: true });
 
@@ -38,10 +39,13 @@ export default function useWorkspaceSync() {
 
     // Clerk -> DB sync, then fetch again
     const syncNow = useCallback(async () => {
+        setSyncError(null);
         try {
             await api.post("/api/workspaces/sync", {}, { headers: { Authorization: `Bearer ${await getToken()}` } });
-        } catch (error) {
-            console.log("Workspace sync failed:", error?.response?.data?.message || error.message);
+        } catch (err) {
+            const message = err?.response?.data?.message || err.message;
+            console.log("Workspace sync failed:", message);
+            setSyncError(message);
         }
         dispatch(fetchWorkspaces({ getToken }));
     }, [dispatch, getToken]);
@@ -55,6 +59,13 @@ export default function useWorkspaceSync() {
         lastSyncKey.current = key;
         syncNow();
     }, [loaded, orgsLoaded, clerkCount, workspaces.length, syncNow]);
+
+    // If loading failed (server asleep, network problem), try again every 5 seconds until it works
+    useEffect(() => {
+        if (!user || !loaded || !error || workspaces.length > 0) return;
+        const timer = setInterval(() => dispatch(fetchWorkspaces({ getToken })), 5000);
+        return () => clearInterval(timer);
+    }, [user, loaded, error, workspaces.length, dispatch, getToken]);
 
     // 3. Background refresh + "task completed" alert for admins
     useEffect(() => {
@@ -116,5 +127,5 @@ export default function useWorkspaceSync() {
         });
     }, [currentWorkspace, user]);
 
-    return { clerkCount, syncNow };
+    return { clerkCount, syncNow, syncError };
 }
